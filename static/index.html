@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="cs" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeteoCenter Pro - Monitorovací & Predikční Centrum</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['JetBrains Mono', 'Menlo', 'Consolas', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Chart.js pro interaktivní časové řady -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .animate-pulse-subtle {
+      animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-screen transition-colors duration-300">
+
+  <!-- HORNÍ NAVIGAČNÍ LIŠTA -->
+  <header class="sticky top-0 z-30 backdrop-blur-md bg-white/80 dark:bg-zinc-900/80 border-b border-zinc-200 dark:border-zinc-800 px-4 lg:px-8 py-3.5">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/20">
+          <i data-lucide="activity" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-extrabold tracking-tight">MeteoCenter Pro</h1>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+              v2.0 Full-Stack
+            </span>
+          </div>
+          <p class="text-xs text-zinc-500 dark:text-zinc-400">
+            Monitorovací centrum, databáze a predikční systém pro lokální fyzickou meteostanici
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- Tlačítko / Odznak Lokality Stanice -->
+        <button id="btnOpenLocationModal" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-700 transition-all shadow-sm">
+          <i data-lucide="map-pin" class="w-3.5 h-3.5 text-rose-500"></i>
+          <span id="locHeaderBadge">Lokalita: Praha (280 m)</span>
+        </button>
+
+        <!-- Tlačítko pro rychlou synchronizaci reálných dat -->
+        <button id="btnSyncRealWeather" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 transition-all shadow-sm" title="Stáhnout a synchronizovat reálné naměřené počasí pro tuto GPS lokalitu">
+          <i data-lucide="cloud-download" class="w-3.5 h-3.5"></i>
+          <span id="syncRealText">Reálné počasí</span>
+        </button>
+
+        <!-- WS Status Badge -->
+        <div id="wsBadge" class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+          <span id="wsDot" class="w-2 h-2 rounded-full bg-amber-500"></span>
+          <span id="wsText" class="text-zinc-600 dark:text-zinc-300 font-mono text-[11px]">Připojuji...</span>
+        </div>
+
+        <!-- Tlačítko pro rychlý testovací impuls -->
+        <button id="btnSendTestReading" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-all shadow-sm">
+          <i data-lucide="send" class="w-3.5 h-3.5"></i>
+          <span>Simulovat impuls</span>
+        </button>
+
+        <!-- CSV Export -->
+        <button id="btnExportCsv" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-700 transition-all shadow-sm">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span id="csvExportText">Export CSV</span>
+        </button>
+
+        <!-- Přepínač Tmavý / Světlý motiv -->
+        <button id="btnThemeToggle" class="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700 transition-all">
+          <i id="themeIcon" data-lucide="sun" class="w-4 h-4 text-amber-400"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- HLAVNÍ OBSAH -->
+  <main class="max-w-7xl mx-auto px-4 lg:px-8 py-6 space-y-6">
+
+    <!-- SEKCE A: AKTUÁLNÍ STAV - REAL-TIME KARTY -->
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          Aktuální stav telemetrie & 1h trendy
+        </h2>
+        <span id="lastUpdated" class="text-xs text-zinc-400 font-mono">Čekání na data...</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Teplota vzduchu -->
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Teplota vzduchu</span>
+            <div class="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/60 text-orange-500">
+              <i data-lucide="thermometer" class="w-5 h-5"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline gap-1.5">
+            <span id="valTemp" class="text-3xl font-extrabold tracking-tight font-mono">--</span>
+            <span class="text-sm font-semibold text-zinc-400">°C</span>
+          </div>
+          <div id="trendTemp" class="mt-2 text-xs flex items-center gap-1 text-zinc-400 font-medium">--</div>
+        </div>
+
+        <!-- Relativní vlhkost -->
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Relativní vlhkost</span>
+            <div class="p-2.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/60 text-cyan-500">
+              <i data-lucide="droplets" class="w-5 h-5"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline gap-1.5">
+            <span id="valHumidity" class="text-3xl font-extrabold tracking-tight font-mono">--</span>
+            <span class="text-sm font-semibold text-zinc-400">%</span>
+          </div>
+          <div id="trendHumidity" class="mt-2 text-xs flex items-center gap-1 text-zinc-400 font-medium">--</div>
+        </div>
+
+        <!-- Atmosférický tlak -->
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Atmosférický tlak</span>
+            <div class="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-500">
+              <i data-lucide="gauge" class="w-5 h-5"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline gap-1.5">
+            <span id="valPressure" class="text-3xl font-extrabold tracking-tight font-mono">--</span>
+            <span class="text-sm font-semibold text-zinc-400">hPa</span>
+          </div>
+          <div id="trendPressure" class="mt-2 text-xs flex items-center gap-1 text-zinc-400 font-medium">--</div>
+        </div>
+
+        <!-- Srážky za 1h -->
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Srážky za 1h</span>
+            <div class="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-500">
+              <i data-lucide="cloud-rain" class="w-5 h-5"></i>
+            </div>
+          </div>
+          <div class="mt-4 flex items-baseline gap-1.5">
+            <span id="valRain" class="text-3xl font-extrabold tracking-tight font-mono">0.0</span>
+            <span class="text-sm font-semibold text-zinc-400">mm</span>
+          </div>
+          <div id="rainStatus" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400 font-medium">Bez srážek</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEKCE B: HYBRIDNÍ PREDIKCE & DIAGNOSTIKA & VÍTR -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Predikční modul (Zambretti + 12-24h + Rosný bod + Pravděpodobnost srážek) -->
+      <div class="lg:col-span-2 bg-gradient-to-br from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <div class="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+              <i data-lucide="sparkles" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-zinc-900 dark:text-zinc-100">Predikční centrum (Zambretti & AI logika)</h3>
+              <p class="text-xs text-zinc-500 dark:text-zinc-400">Fyzikální předpovědní model založený na 3h barometrickém gradientu</p>
+            </div>
+          </div>
+          <span id="zambrettiCodeBadge" class="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700">
+            Zambretti: A
+          </span>
+        </div>
+
+        <!-- Textová prognóza na 12/24 hodin -->
+        <div class="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50 rounded-xl p-4 mb-5">
+          <span class="text-[11px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block mb-1">
+            Předpověď na 12 - 24 hodin
+          </span>
+          <p id="forecastText12h" class="text-sm font-medium text-zinc-800 dark:text-zinc-200 leading-relaxed">
+            Načítám meteorologickou prognózu...
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Tendence tlaku (3h) -->
+          <div class="bg-white dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/60 rounded-xl p-4">
+            <span class="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-1">Tendence tlaku (3h)</span>
+            <div id="valDeltaP" class="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">-- hPa</div>
+            <p id="labelTendency" class="text-xs text-zinc-600 dark:text-zinc-300 mt-1 font-medium">Analýza...</p>
+          </div>
+
+          <!-- Rosný bod -->
+          <div class="bg-white dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/60 rounded-xl p-4">
+            <span class="text-xs font-medium text-zinc-500 dark:text-zinc-400 block mb-1">Rosný bod (Dew Point)</span>
+            <div id="valDewPoint" class="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">-- °C</div>
+            <p id="labelDewSpread" class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Magnus-Tetens</p>
+          </div>
+
+          <!-- Pravděpodobnost srážek -->
+          <div class="bg-white dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/60 rounded-xl p-4">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Riziko srážek</span>
+              <span id="rainProbBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded border text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800">Nízké</span>
+            </div>
+            <div id="valRainProb" class="text-2xl font-black font-mono text-zinc-900 dark:text-zinc-100">0 %</div>
+            <div class="w-full bg-zinc-200 dark:bg-zinc-700 h-2 rounded-full mt-2 overflow-hidden">
+              <div id="rainProbBar" class="h-full bg-emerald-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800/80 flex items-start gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <i data-lucide="compass" class="w-4 h-4 mt-0.5 text-zinc-400 shrink-0"></i>
+          <span><strong class="text-zinc-700 dark:text-zinc-300">Zambretti pravidlo:</strong> <span id="zambrettiDesc">--</span></span>
+        </div>
+      </div>
+
+      <!-- Pravý sloupec: Vítr & Diagnostika HW -->
+      <div class="space-y-6">
+        <!-- Větrná růžice -->
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Větrné podmínky</span>
+            <i data-lucide="wind" class="w-4 h-4 text-blue-500"></i>
+          </div>
+          <div class="flex items-center justify-around py-3">
+            <div class="relative w-28 h-28 flex items-center justify-center rounded-full border-2 border-dashed border-zinc-200 dark:border-zinc-700">
+              <span class="absolute top-1 text-[10px] font-bold text-zinc-400">S</span>
+              <span class="absolute right-1.5 text-[10px] font-bold text-zinc-400">V</span>
+              <span class="absolute bottom-1 text-[10px] font-bold text-zinc-400">J</span>
+              <span class="absolute left-1.5 text-[10px] font-bold text-zinc-400">Z</span>
+              <div id="windCompassNeedle" class="w-12 h-12 flex items-center justify-center transition-transform duration-700 ease-out">
+                <i data-lucide="navigation" class="w-8 h-8 text-blue-500 fill-blue-500/20"></i>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <div>
+                <span class="text-xs text-zinc-500 dark:text-zinc-400 block">Rychlost</span>
+                <div class="flex items-baseline gap-1">
+                  <span id="valWindSpeed" class="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-100">--</span>
+                  <span class="text-xs text-zinc-500">m/s</span>
+                </div>
+                <span id="valWindKmh" class="text-[11px] text-zinc-400 font-mono">(-- km/h)</span>
+              </div>
+              <div>
+                <span class="text-xs text-zinc-500 dark:text-zinc-400 block">Směr větru</span>
+                <span id="valWindDir" class="text-sm font-bold font-mono text-zinc-800 dark:text-zinc-200">--° (--)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Diagnostika HW stanice -->
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Diagnostika stanice</span>
+            <i data-lucide="radio" class="w-4 h-4 text-zinc-400"></i>
+          </div>
+
+          <div class="space-y-3">
+            <!-- Online / Offline odznak (timeout > 5 min) -->
+            <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
+              <div class="flex items-center gap-2.5">
+                <span id="stationDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <div>
+                  <span id="stationStatusLabel" class="text-xs font-bold text-zinc-900 dark:text-zinc-100 block">STANICE ONLINE</span>
+                  <span id="stationLastSeen" class="text-[11px] text-zinc-500 dark:text-zinc-400">Poslední odezva: --</span>
+                </div>
+              </div>
+              <span id="stationBadge" class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">Aktivní</span>
+            </div>
+
+            <!-- Baterie -->
+            <div class="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
+                  <i data-lucide="battery" class="w-4 h-4 text-zinc-500"></i>
+                  Napětí akumulátoru
+                </span>
+                <span id="valBattery" class="text-xs font-bold font-mono">-- V (-- %)</span>
+              </div>
+              <div class="w-full bg-zinc-200 dark:bg-zinc-700 h-2 rounded-full overflow-hidden mb-1.5">
+                <div id="batteryBar" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+                <span>Stav: <strong id="batteryHealth" class="text-zinc-700 dark:text-zinc-300">Optimální</strong></span>
+                <span>Typ: Li-Ion 1S</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SEKCE C: STATISTICKÉ VYHODNOCENÍ ZA ZVOLENÉ OBDOBÍ -->
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
+      <div class="flex items-center gap-2 mb-4">
+        <i data-lucide="bar-chart-3" class="w-4 h-4 text-blue-500"></i>
+        <h3 class="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+          Statistiky za vybrané období (<span id="statsTfLabel">24 hodin</span>)
+        </h3>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800">
+          <span class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 block">Tmax (Maximum)</span>
+          <span id="statTmax" class="text-lg font-bold font-mono text-rose-500">-- °C</span>
+        </div>
+        <div class="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800">
+          <span class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 block">Tmin (Minimum)</span>
+          <span id="statTmin" class="text-lg font-bold font-mono text-cyan-500">-- °C</span>
+        </div>
+        <div class="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800">
+          <span class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 block">Průměrná teplota</span>
+          <span id="statTavg" class="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">-- °C</span>
+        </div>
+        <div class="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800">
+          <span class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 block">Průměrná vlhkost</span>
+          <span id="statHavg" class="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">-- %</span>
+        </div>
+        <div class="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800">
+          <span class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 block">Celkové srážky</span>
+          <span id="statRsum" class="text-lg font-bold font-mono text-blue-500">0.0 mm</span>
+        </div>
+        <div class="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800">
+          <span class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400 block">Max. náraz větru</span>
+          <span id="statWmax" class="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">-- m/s</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEKCE D: INTERAKTIVNÍ HISTORICKÝ GRAF -->
+    <section class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div>
+          <h3 class="text-lg font-bold text-zinc-900 dark:text-zinc-100">Historický průběh veličin</h3>
+          <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Analýza časových řad s volbou období a metriky</p>
+        </div>
+
+        <!-- Časový filtr -->
+        <div class="inline-flex rounded-xl bg-zinc-100 dark:bg-zinc-800 p-1 border border-zinc-200 dark:border-zinc-700/60">
+          <button data-tf="24h" class="btn-tf px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm transition-all">24 hodin</button>
+          <button data-tf="7d" class="btn-tf px-3 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all">7 dní</button>
+          <button data-tf="30d" class="btn-tf px-3 py-1.5 text-xs font-semibold rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-all">30 dní</button>
+        </div>
+      </div>
+
+      <!-- Přepínače metrik -->
+      <div class="flex flex-wrap gap-2 mb-6" id="metricButtonsContainer">
+        <button data-metric="temperature" class="btn-metric px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-500 text-white shadow-sm border border-transparent">Teplota (°C)</button>
+        <button data-metric="humidity" class="btn-metric px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100">Vlhkost (%)</button>
+        <button data-metric="pressure" class="btn-metric px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100">Tlak (hPa)</button>
+        <button data-metric="wind_speed" class="btn-metric px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100">Vítr (m/s)</button>
+        <button data-metric="rainfall_mm" class="btn-metric px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100">Srážky (mm)</button>
+      </div>
+
+      <!-- Plátno grafu -->
+      <div class="w-full h-72 md:h-80 relative">
+        <canvas id="weatherChart"></canvas>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODÁLNÍ OKNO NASTAVENÍ LOKALITY A GPS -->
+  <div id="locationModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-5">
+      <!-- Hlavička modálu -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-500">
+            <i data-lucide="map-pin" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-zinc-900 dark:text-zinc-100">Nastavení lokality stanice</h3>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400">Přizpůsobení GPS, nadmořské výšky a reálných dat</p>
+          </div>
+        </div>
+        <button id="btnCloseLocationModal" class="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Tlačítko automatické detekce GPS zařízení -->
+      <button id="btnDetectGps" class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all shadow-md shadow-blue-500/20">
+        <i data-lucide="crosshair" class="w-4 h-4"></i>
+        <span>Detekovat mou GPS polohu v zařízení</span>
+      </button>
+
+      <!-- Rychlé předvolby měst -->
+      <div>
+        <label class="text-xs font-semibold text-zinc-500 dark:text-zinc-400 block mb-2">Rychlý výběr lokality:</label>
+        <div class="flex flex-wrap gap-1.5" id="cityPresetButtons">
+          <button data-city="Praha" data-lat="50.08" data-lon="14.43" data-elev="280" class="btn-city-preset px-2.5 py-1 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300">Praha</button>
+          <button data-city="Brno" data-lat="49.19" data-lon="16.60" data-elev="237" class="btn-city-preset px-2.5 py-1 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300">Brno</button>
+          <button data-city="Ostrava" data-lat="49.83" data-lon="18.28" data-elev="260" class="btn-city-preset px-2.5 py-1 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300">Ostrava</button>
+          <button data-city="Plzeň" data-lat="49.74" data-lon="13.37" data-elev="326" class="btn-city-preset px-2.5 py-1 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300">Plzeň</button>
+          <button data-city="Liberec" data-lat="50.76" data-lon="15.05" data-elev="374" class="btn-city-preset px-2.5 py-1 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300">Liberec</button>
+          <button data-city="Olomouc" data-lat="49.59" data-lon="17.25" data-elev="219" class="btn-city-preset px-2.5 py-1 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300">Olomouc</button>
+          <button data-city="České Budějovice" data-lat="48.97" data-lon="14.47" data-elev="381" class="btn-city-preset px-2.5 py-1 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300">Č. Budějovice</button>
+          <button data-city="Hradec Králové" data-lat="50.21" data-lon="15.83" data-elev="235" class="btn-city-preset px-2.5 py-1 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300">Hr. Králové</button>
+          <button data-city="Ústí nad Labem" data-lat="50.66" data-lon="14.03" data-elev="142" class="btn-city-preset px-2.5 py-1 text-xs rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300">Ústí n. L.</button>
+        </div>
+      </div>
+
+      <!-- Formulář polohy -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="col-span-2">
+          <label class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 block mb-1">Název stanice / lokality</label>
+          <input id="inputLocName" type="text" class="w-full px-3 py-2 text-xs rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500" value="Praha - Karlov" />
+        </div>
+        <div>
+          <label class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 block mb-1">Zeměpisná šířka (°N)</label>
+          <input id="inputLocLat" type="number" step="0.0001" class="w-full px-3 py-2 text-xs font-mono rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500" value="50.08" />
+        </div>
+        <div>
+          <label class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 block mb-1">Zeměpisná délka (°E)</label>
+          <input id="inputLocLon" type="number" step="0.0001" class="w-full px-3 py-2 text-xs font-mono rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500" value="14.43" />
+        </div>
+        <div class="col-span-2">
+          <label class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 block mb-1">Nadmořská výška (m n.m. - pro redukci tlaku QNH)</label>
+          <input id="inputLocElev" type="number" class="w-full px-3 py-2 text-xs font-mono rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500" value="280" />
+        </div>
+      </div>
+
+      <!-- Volba synchronizace reálných dat -->
+      <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 flex items-start gap-2.5">
+        <input id="checkSyncReal" type="checkbox" checked class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500" />
+        <label for="checkSyncReal" class="text-xs text-zinc-700 dark:text-zinc-300">
+          <strong>Stáhnout a synchronizovat reálná meteorologická data</strong> pro tuto přesnou polohu (načte reálnou teplotu, vlhkost, tlak, vítr a 30denní historii).
+        </label>
+      </div>
+
+      <!-- Tlačítka uložení -->
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+        <button id="btnCancelLocation" class="px-3.5 py-2 text-xs font-medium rounded-xl text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">Zrušit</button>
+        <button id="btnSaveLocation" class="px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-sm flex items-center gap-1.5">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i>
+          <span>Uložit a synchronizovat</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/dashboard.js"></script>
+</body>
+</html>

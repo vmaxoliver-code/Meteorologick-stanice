@@ -1,0 +1,16 @@
+===========================================================================
+[METEOCENTER PRO] Meteorologické monitorovací & predikční centrum
+===========================================================================
+-> Webový Dashboard:        http://localhost:8000
+-> Interaktivní Swagger:    http://localhost:8000/docs
+-> Příjem telemetrie (POST): http://localhost:8000/api/telemetry
+-> Real-time WebSocket:     ws://localhost:8000/ws
+-> CSV Export dat:          http://localhost:8000/api/export/csv?timeframe=24h
+===========================================================================
+Pro simulaci fyzické meteostanice spusťte v druhém okně: python simulate_station.py
+Server běží... Ukončení: stiskněte Ctrl+C
+
+[METEO SERVER] Inicializace prázdné databáze: Generuji počáteční realistická měření...
+[METEO SEEDER] Úspěšně dávkově uloženo 793 historických záznamů.
+INFO:     127.0.0.1:65000 - "GET /api/readings/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65000 - "GET /api/prediction HTTP/1.1" 200 OK
